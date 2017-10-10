@@ -95,18 +95,21 @@ class Qiniu(object):
         self.__token_deadline = deadline
         return self.__token
 
-    def upload_file(self, file):
+    def upload_file(self, data):
         """上传文件
-        file 文件本地地址或者 file
+        data 文件本地地址或者二进制文件
         """
-        if isinstance(file, str):
-            resource = self.upload_localfile(file)
+        if isinstance(data, str):
+            resource = self.upload_localfile(data)
 
-        elif isinstance(file, bytes):
-            file = file.decode('utf-8')
-            resource = self.upload_localfile(file)
+        elif isinstance(data, bytes):
+            data = data.decode('utf-8')
+            resource = self.upload_localfile(data)
 
-        return resource
+        else:
+            resource = self.put_file(data)
+
+        return self.generate_resource_path(resource)
 
     def generate_key(self):
         return '{}{}'.format(int(time.time()), int(random.random() * 100))
@@ -121,11 +124,16 @@ class Qiniu(object):
     def upload_localfile(self, file_path):
         """上传本地文件
         """
+
+        with open(file_path, 'rb') as f:
+            key = self.put_file(f)
+
+        return key
+
+    def put_file(self, bin_file):
         payload = {'key': self.generate_key(), 'token': self.get_token()}
+        files = {'file': bin_file}
+        r = requests.post(self.qiniu_url, data=payload, files=files)
+        r.raise_for_status
 
-        with open(file_path, 'rb') as file:
-            files = {'file': file}
-            r = requests.post(self.qiniu_url, data=payload, files=files)
-            r.raise_for_status
-
-        return self.generate_resource_path(r.json().get('key'))
+        return r.json().get('key')
